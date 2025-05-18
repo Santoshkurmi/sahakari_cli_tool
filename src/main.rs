@@ -4,14 +4,16 @@
 use clap::{error, Parser, Subcommand};
 use colored::*;
 use inquire::{Confirm, MultiSelect, Select};
-use std::{env, path::PathBuf, process::{Command, Output}};
+use std::{env, os::unix::thread, path::PathBuf, process::{Command, Output}};
 use walkdir::WalkDir;
-
+use sysinfo::{CpuExt, CpuRefreshKind, DiskExt, RefreshKind, System, SystemExt};
 mod config;
 mod git;
 mod logger;
 mod project;
 mod state;
+use std::thread::sleep;
+use std::time::Duration;
 
 use config::Config;
 use git::GitOperations;
@@ -26,6 +28,8 @@ struct Cli {
 }
 
 #[derive(Subcommand)]
+
+
 enum Commands {
     /// Update all or selected Laravel projects
     Update {
@@ -58,6 +62,11 @@ enum Commands {
         #[clap(value_parser)]
         path: Option<String>,
     },
+
+    /// Check system health like cpu, memory, disk usage
+    Health{
+        
+    },
     
     /// Show logs of previous operations
     Logs {
@@ -80,10 +89,71 @@ enum Commands {
         #[clap(long,short='s')]
         show: bool,
     },
+
 }
+
+
+fn system_details() {
+    let mut sys = System::new();
+
+    sys.refresh_cpu();
+    sys.refresh_memory();
+    sys.refresh_disks_list();
+    sys.refresh_disks();
+
+    // Sleep for a moment so usage can be measured
+    sleep(Duration::from_millis(1000));
+
+    // Second refresh to get CPU usage diff
+    sys.refresh_cpu();
+    let mut total_usage = 0.0;
+
+
+    println!("┌────────────┬────────────────────────────────────────┐");
+    println!("│ CPU        │ Usage (%)                              │");
+    println!("├────────────┼────────────────────────────────────────┤");
+    for (i, cpu) in sys.cpus().iter().enumerate() {
+        total_usage += cpu.cpu_usage();
+        println!("│ CPU {:<6} │ {:>36.2} % │", i, cpu.cpu_usage());
+    }
+
+        println!("│ Avg {:<6} │ {:>36.2} % │", "", total_usage/ sys.cpus().len() as f32);
+
+
+    println!("└────────────┴────────────────────────────────────────┘\n");
+    // println!("\n🧠 Average CPU Usage: {:.2}%", average);
+
+    let total_mem_gb = sys.total_memory() as f64 / (1024.0 * 1024.0*1024.0);
+    let used_mem_gb = sys.used_memory() as f64 / (1024.0 * 1024.0*1024.0);
+    let mem_percent = (used_mem_gb / total_mem_gb) * 100.0;
+
+    println!("┌────────────┬─────────────────────────────────────────────────────────────┐");
+    println!("│ RAM        │                                                             │");
+    println!("├────────────┼──────────────────────────────────────────────────────── ────│");
+    println!("│ Used       │ {:>6.2} GB / {:<6.2} GB ({:.1}%) │", used_mem_gb, total_mem_gb, mem_percent);
+    println!("└────────────┴─────────────────────────────────────────────────────────────\n");
+
+    println!("┌────────────┬──────────────────────────────────────────────┐");
+    println!("│ Disk       │ Total (GB)    | Available (GB)               │");
+    println!("├────────────┼──────────────────────────────────────────────┤");
+    for disk in sys.disks() {
+        let total = disk.total_space() as f64 / (1024.0 * 1024.0 * 1024.0);
+        let available = disk.available_space() as f64 / (1024.0 * 1024.0 * 1024.0);
+        let name = disk.mount_point().to_string_lossy();
+        println!(
+            "│ {:<10} │ {:>10.2}     | {:>10.2}                  │",
+            name, total, available
+        );
+    }
+    println!("└────────────┴──────────────────────────────────────────────┘");
+}
+
+
 #[allow(unused)]
 fn main() {
     // Initialize configuration
+
+    
     let config = Config::load().unwrap_or_else(|_| {
         println!("{}", "No configuration found. Creating default configuration.".yellow());
         let default_config = Config::default();
@@ -109,6 +179,9 @@ fn main() {
         },
         Commands::Config { root, show } => {
             configure(&config, root, show);
+        },
+        Commands::Health {  } => {
+            system_details();
         },
     }
 }
