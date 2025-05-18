@@ -536,11 +536,19 @@ fn scan_for_projects(root_path: &str) -> Vec<LaravelProject> {
 }
 
 fn run_command(working_dir: &str, command: &str, args: &[&str]) -> Result<Output, String> {
-    Command::new(command)
+     let output = Command::new(command)
         .args(args)
         .current_dir(working_dir)
         .output()
-        .map_err(|e| e.to_string())
+        .map_err(|e| format!("Failed to launch command: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Command failed:\n{}", stderr));
+    }
+
+    Ok(output)
+
 }
 
 fn show_logs(logger: &Logger, export: Option<String>, errors_only: bool) {
