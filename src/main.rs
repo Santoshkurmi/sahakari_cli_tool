@@ -128,6 +128,9 @@ fn update_projects(
 
   
     logger.log(LogLevel::Info, "Starting Laravel project update process", None);
+    Command::new("clear")
+        .status() // or use `spawn()` for async
+        .expect("Failed to clear terminal");
     let mut projects_to_process = Vec::new();
     let mut total_count = 0;
 
@@ -181,9 +184,13 @@ fn update_projects(
                 .prompt()
                 .unwrap_or_else(|_| Vec::new());
 
+            total_count = selected.len() ;
+
             projects.into_iter()
                 .filter(|p| selected.contains(&p.name))
                 .collect::<Vec<_>>()
+
+            
         
                 
             
