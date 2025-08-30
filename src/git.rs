@@ -128,11 +128,11 @@ pub fn pull(repo_path: &str) -> Result<Vec<String>, String> {
         .output()
         .map_err(|e| format!("Git pull failed: {}", e))?;
 
-    // Command::new("git")
-    //     .args(&["remote", "set-url", "origin", &original_url])
-    //     .current_dir(repo_path)
-    //     .output()
-    //     .map_err(|e| format!("Failed to reset remote URL: {}", e))?;
+    Command::new("git")
+        .args(&["remote", "set-url", "origin", &original_url])
+        .current_dir(repo_path)
+        .output()
+        .map_err(|e| format!("Failed to reset remote URL: {}", e))?;
 
 
     if !pull.status.success() {
