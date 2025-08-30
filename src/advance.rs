@@ -12,7 +12,7 @@ use std::{
 
 use colored::*;
 
-use crate::project::LaravelProject;
+use crate::{git::get_git_credentials, project::LaravelProject};
 
 /// Run a command quietly, but show output if error
 fn run_cmd(dir: &Path, cmd: &str, args: &[&str]) -> Result<(), String> {
@@ -33,6 +33,67 @@ fn run_cmd(dir: &Path, cmd: &str, args: &[&str]) -> Result<(), String> {
 
     Ok(())
 }
+
+use urlencoding::encode;
+
+/// Run a git command with temporary credential injection
+fn run_git_with_auth(
+    repo_path: &str,
+    args: &[&str],
+) -> Result<(), String> {
+    let creds = get_git_credentials();
+
+    // Get original URL
+    let output = Command::new("git")
+        .args(&["config", "--get", "remote.origin.url"])
+        .current_dir(repo_path)
+        .output()
+        .map_err(|e| format!("Failed to get remote URL: {}", e))?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "Git config error: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    let original_url = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+    // Inject creds
+    let encoded_user = encode(&creds.username);
+    let encoded_pass = encode(&creds.password);
+    let temp_url = original_url.replace(
+        "https://",
+        &format!("https://{}:{}@", encoded_user, encoded_pass),
+    );
+
+    Command::new("git")
+        .args(&["remote", "set-url", "origin", &temp_url])
+        .current_dir(repo_path)
+        .output()
+        .map_err(|e| format!("Failed to set temp remote URL: {}", e))?;
+
+    // Run actual git command
+    let result = Command::new("git")
+        .args(args)
+        .current_dir(repo_path)
+        .output()
+        .map_err(|e| format!("Git command failed: {}", e));
+
+    // Restore URL
+    Command::new("git")
+        .args(&["remote", "set-url", "origin", &original_url])
+        .current_dir(repo_path)
+        .output()
+        .map_err(|e| format!("Failed to restore remote URL: {}", e))?;
+
+    // Return error if git itself failed
+    match result {
+        Ok(res) if res.status.success() => Ok(()),
+        Ok(res) => Err(String::from_utf8_lossy(&res.stderr).to_string()),
+        Err(e) => Err(e),
+    }
+}
+
 
 /// Get latest commit hash where `resources/js` changed
 fn latest_js_commit(project: &Path) -> Result<String, String> {
@@ -81,7 +142,7 @@ pub fn ensure_js_build(project: &Path, parent: &Path) -> Result<(), String> {
 
     if !check_commit.status.success() {
         println!("{}", "⏬ Commit not found in parent, fetching...".blue());
-        run_cmd(parent, "git", &["fetch", "--all"])?;
+        run_git_with_auth(parent.to_str().unwrap(), &["fetch", "--all"])?;
     }
 
     // Checkout commit

@@ -6,14 +6,14 @@ use once_cell::sync::OnceCell;
 pub struct GitOperations;
 
 #[derive(Debug, Clone)]
-struct GitCredentials {
-    username: String,
-    password: String,
+pub struct GitCredentials {
+    pub username: String,
+    pub password: String,
 }
 
 static CACHED_CREDENTIALS: OnceCell<GitCredentials> = OnceCell::new();
 
-fn get_git_credentials() -> GitCredentials {
+pub fn get_git_credentials() -> GitCredentials {
     if let Some(cached) = CACHED_CREDENTIALS.get() {
         return cached.clone();
     }
