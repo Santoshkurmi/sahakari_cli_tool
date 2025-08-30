@@ -17,20 +17,20 @@ fn get_git_credentials() -> GitCredentials {
     if let Some(cached) = CACHED_CREDENTIALS.get() {
         return cached.clone();
     }
-
-    print!("Git Username: ");
-    io::stdout().flush().unwrap();
-    let mut username = String::new();
-    io::stdin().read_line(&mut username).unwrap();
-
-    print!("Git Password: ");
-    io::stdout().flush().unwrap();
-    let mut password = String::new();
-    io::stdin().read_line(&mut password).unwrap();
-
+    //
+    // print!("Git Username: ");
+    // io::stdout().flush().unwrap();
+    // let mut username = String::new();
+    // io::stdin().read_line(&mut username).unwrap();
+    //
+    // print!("Git Password: ");
+    // io::stdout().flush().unwrap();
+    // let mut password = String::new();
+    // io::stdin().read_line(&mut password).unwrap();
+    //
     let creds = GitCredentials {
-        username: username.trim().to_string(),
-        password: password.trim().to_string(),
+        username: "brightsoftware.backup@gmail.com".to_string(),
+        password: "brightreadonlybot".to_string(),
     };
 
     // Store once

@@ -1,6 +1,7 @@
 // Laravel Project Manager CLI Tool
 // Main entry point for the application
 
+
 use clap::{error, Parser, Subcommand};
 use colored::*;
 use inquire::{Confirm, MultiSelect, Select};
@@ -374,28 +375,28 @@ fn update_projects(
                     }
                     
                     if has_js_changes || force {
-                        println!("  {} {}", "→".blue(), "JS files changed, running npm install && npm run build");
+                        println!("  {} {}", "→".blue(), "JS files changed, running pnpm install && pnpm run dev");
                         if verbose {
-                            println!("    {}", "Executing: npm install".cyan());
+                            println!("    {}", "Executing: pnpm install".cyan());
                         }
                         
                         if !dry_run {
 
                             if has_package_change ||force{
-                            match run_command(&project.path, "npm", &["install"]) {
+                            match run_command(&project.path, "bash", &["-c"," yes | pnpm install"]) {
                                 Ok(_) => {
-                                    println!("    {} {}", "✓".green(), "npm install completed".green());
-                                    logger.log(LogLevel::Info, &format!("npm install completed for {}", project.name), None);
+                                    println!("    {} {}", "✓".green(), "pnpm install completed".green());
+                                    logger.log(LogLevel::Info, &format!("pnpm install completed for {}", project.name), None);
                                     
                                     if verbose {
-                                        println!("    {}", "Executing: npm run build".cyan());
+                                        println!("    {}", "Executing: pnpm run dev".cyan());
                                     }
                                     
                                  
                                 },
                                 Err(e) => {
-                                    println!("    {} {}: {}", "✗".red(), "npm install failed".red(), e);
-                                    logger.log(LogLevel::Error, &format!("npm install failed for {}: {}", project.name, e), None);
+                                    println!("    {} {}: {}", "✗".red(), "pnpm install failed".red(), e);
+                                    logger.log(LogLevel::Error, &format!("pnpm install failed for {}: {}", project.name, e), None);
                                     
                                     // Save state for resuming later
                                     state_manager.save_state(&project.name, "npm_install_failed");
@@ -409,7 +410,7 @@ fn update_projects(
                                         "Skip this project" => continue 'outer,
                                         "Retry command" => {
                                             // TODO: Implement retry logic
-                                            println!("  {} {}", "→".blue(), "Retrying npm install");
+                                            println!("  {} {}", "→".blue(), "Retrying pnpm install");
                                             continue;
                                         },
                                         _ => {
@@ -425,14 +426,14 @@ fn update_projects(
 
                             }//has package change
 
-                                   match run_command(&project.path, "npm", &["run", "dev"]) {
+                                   match run_command(&project.path, "pnpm", &["run", "dev"]) {
                                         Ok(_) => {
-                                            println!("    {} {}", "✓".green(), "npm run dev completed".green());
-                                            logger.log(LogLevel::Info, &format!("npm run build completed for {}", project.name), None);
+                                            println!("    {} {}", "✓".green(), "pnpm run dev completed".green());
+                                            logger.log(LogLevel::Info, &format!("pnpm run dev completed for {}", project.name), None);
                                         },
                                         Err(e) => {
-                                            println!("    {} {}: {}", "✗".red(), "npm run dev failed".red(), e);
-                                            logger.log(LogLevel::Error, &format!("npm run dev failed for {}: {}", project.name, e), None);
+                                            println!("    {} {}: {}", "✗".red(), "pnpm run dev failed".red(), e);
+                                            logger.log(LogLevel::Error, &format!("pnpm run dev failed for {}: {}", project.name, e), None);
                                             
                                             // Save state for resuming later
                                             state_manager.save_state(&project.name, "npm_dev_failed");
@@ -577,7 +578,7 @@ fn scan_for_projects(root_path: &str) -> Vec<LaravelProject> {
     let mut projects = Vec::new();
     
     for entry in WalkDir::new(root_path)
-        .max_depth(2)  // Only scan immediate subdirectories
+        .max_depth(1)  // Only scan immediate subdirectories
         .into_iter()
         .filter_map(|e| e.ok())
     {
