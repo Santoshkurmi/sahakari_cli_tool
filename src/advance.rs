@@ -16,7 +16,7 @@ use crate::{git::get_git_credentials, project::LaravelProject};
 
 /// Run a command quietly, but show output if error
 fn run_cmd(dir: &Path, cmd: &str, args: &[&str]) -> Result<(), String> {
-    println!("{}", format!("→ Running `{}`", [cmd, &args.join(" ")].join(" ")).blue());
+    // println!("{}", format!("→ Running `{}`", [cmd, &args.join(" ")].join(" ")).blue());
     let output = Command::new(cmd)
         .args(args)
         .current_dir(dir)
@@ -129,7 +129,15 @@ fn latest_js_commit(project: &Path) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-
+fn remove_any(path: &Path) {
+    if path.exists() {
+        if path.is_file() || path.is_symlink() {
+            let _ = fs::remove_file(path);
+        } else if path.is_dir() {
+            let _ = fs::remove_dir_all(path);
+        }
+    }
+}
 /// Main workflow
 pub fn ensure_js_build(project: &Path, parent: &Path) -> Result<(), String> {
     // println!("{}", "⚡ Starting JS build check".yellow().bold());
@@ -142,9 +150,11 @@ pub fn ensure_js_build(project: &Path, parent: &Path) -> Result<(), String> {
 
 
     if builds_path.exists() && builds_path.read_dir().map_err(|e| e.to_string())?.next().is_some() {
-        if project_build_link.exists() {
-            fs::remove_file(&project_build_link).ok();
-        }
+        // if project_build_link.exists() {
+        //     fs::remove_file(&project_build_link).ok();
+        // }
+        remove_any(&project_build_link);
+        
         std::os::unix::fs::symlink(&builds_path, &project_build_link)
             .map_err(|e| e.to_string())?;
         println!("{}", "✅ Build already exists and has files, linked successfully".green());
