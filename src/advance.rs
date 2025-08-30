@@ -59,13 +59,14 @@ pub fn ensure_js_build(project: &Path, parent: &Path) -> Result<(), String> {
     let builds_path = parent.join(".builds").join(&commit_hash);
     let project_build_link = project.join("public/build");
 
-    if builds_path.exists() {
+
+    if builds_path.exists() && builds_path.read_dir().map_err(|e| e.to_string())?.next().is_some() {
         if project_build_link.exists() {
             fs::remove_file(&project_build_link).ok();
         }
         std::os::unix::fs::symlink(&builds_path, &project_build_link)
             .map_err(|e| e.to_string())?;
-        println!("{}", "✅ Build already exists, linked successfully".green());
+        println!("{}", "✅ Build already exists and has files, linked successfully".green());
         return Ok(());
     }
 
