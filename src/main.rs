@@ -4,8 +4,9 @@
 
 use clap::{error, Parser, Subcommand};
 use colored::*;
+use fs2::FileExt;
 use inquire::{Confirm, MultiSelect, Select};
-use std::{env, os::unix::thread, path::PathBuf, process::{Command, Output}};
+use std::{env, fs::File, io::stdout, os::unix::thread, path::{Path, PathBuf}, process::{exit, Command, Output}};
 use walkdir::WalkDir;
 use sysinfo::{CpuExt, CpuRefreshKind, DiskExt, RefreshKind, System, SystemExt};
 mod config;
@@ -15,12 +16,15 @@ mod project;
 mod state;
 use std::thread::sleep;
 use std::time::Duration;
-
+mod advance;
 use config::Config;
+use std::io::{ Write};
 use git::GitOperations;
 use logger::{Logger, LogLevel};
 use project::{LaravelProject, ProjectStatus};
 use state::StateManager;
+
+use crate::advance::{cleanup_unused_parent_builds, ensure_js_build};
 #[derive(Parser)]
 #[clap(author, version, about)]
 struct Cli {
@@ -150,11 +154,55 @@ fn system_details() {
 }
 
 
+fn lock_folder(folder: &Path) -> Result<File, String> {
+    let lock_file_path = folder.join(".lock");
+    let file = File::create(&lock_file_path).map_err(|e| e.to_string())?;
+
+    // Try to acquire immediately
+    if let Ok(_) = file.try_lock_exclusive() {
+        // Lock acquired silently
+        return Ok(file);
+    }
+
+    // Lock is already held, show waiting message
+    println!("⚠️  Someone else is updating the system, please wait...");
+    print!("⏳ Waiting"); 
+    
+
+    loop {
+        match file.try_lock_exclusive() {
+            Ok(_) => {
+                // println!("\n✅ Lock acquired on {:?}", folder);
+                break;
+            }
+            Err(_) => {
+                print!("."); // progress indicator
+                stdout().flush().ok();
+                sleep(Duration::from_secs(2));
+            }
+        }
+    }
+
+    Ok(file)
+}
+
+
 #[allow(unused)]
 fn main() {
     // Initialize configuration
+    let folder = Path::new("/var/www/dont_delete_sahakari_main");
 
-    
+    // Call the lock function
+    let lock = lock_folder(folder);
+    match lock {
+        Ok(file) => {
+           
+        }
+        Err(e) =>{ 
+            println!("{}", e);
+            exit(1) },
+    }
+
     let config = Config::load().unwrap_or_else(|_| {
         println!("{}", "No configuration found. Creating default configuration.".yellow());
         let default_config = Config::default();
@@ -200,7 +248,7 @@ fn update_projects(
     force:bool
 ) {
 
-  
+    let parent = Path::new("/var/www/dont_delete_sahakari_main");
     logger.log(LogLevel::Info, "Starting Laravel project update process", None);
     Command::new("clear")
         .status() // or use `spawn()` for async
@@ -216,6 +264,13 @@ fn update_projects(
         if projects.is_empty() {
             println!("{}", "No Laravel projects found.".red());
             logger.log(LogLevel::Error, "No Laravel projects found", None);
+            return;
+        }
+
+        let result = cleanup_unused_parent_builds(&projects, &parent);
+        if let Err(e) = result {
+            println!("{}", e);
+            logger.log(LogLevel::Error, &format!("Failed to cleanup parent builds: {}", e), None);
             return;
         }
 
@@ -313,11 +368,11 @@ fn update_projects(
 
             match GitOperations::pull(&project.path) {
                 Ok(changes) => {
-                    if changes.is_empty() && !force {
-                        println!("  {} {}", "✓".green(), "No changes detected".green());
-                        logger.log(LogLevel::Info, &format!("No changes detected in {}", project.name), None);
-                        continue 'outer;
-                    }
+                    // if changes.is_empty() && !force {
+                    //     println!("  {} {}", "✓".green(), "No changes detected".green());
+                    //     logger.log(LogLevel::Info, &format!("No changes detected in {}", project.name), None);
+                    //     continue 'outer;
+                    // }
                     
                     println!("  {} {} {}", "✓".green(), "Pulled changes:".green(), changes.len());
                     
@@ -374,15 +429,15 @@ fn update_projects(
                         }
                     }
                     
-                    if has_js_changes || force {
-                        println!("  {} {}", "→".blue(), "JS files changed, running pnpm install && pnpm run dev");
-                        if verbose {
-                            println!("    {}", "Executing: pnpm install".cyan());
-                        }
+                    if has_js_changes || force || true {
+                        // println!("  {} {}", "→".blue(), "JS files changed, running pnpm install && pnpm run dev");
+                        // if verbose {
+                        //     println!("    {}", "Executing: pnpm install".cyan());
+                        // }
                         
                         if !dry_run {
 
-                            if has_package_change ||force{
+                            if (has_package_change ||force) && false {
                             match run_command(&project.path, "bash", &["-c"," yes | pnpm install"]) {
                                 Ok(_) => {
                                     println!("    {} {}", "✓".green(), "pnpm install completed".green());
@@ -426,7 +481,7 @@ fn update_projects(
 
                             }//has package change
 
-                                   match run_command(&project.path, "pnpm", &["run", "dev"]) {
+                                   match ensure_js_build(Path::new(&project.path), &parent) {
                                         Ok(_) => {
                                             println!("    {} {}", "✓".green(), "pnpm run dev completed".green());
                                             logger.log(LogLevel::Info, &format!("pnpm run dev completed for {}", project.name), None);
