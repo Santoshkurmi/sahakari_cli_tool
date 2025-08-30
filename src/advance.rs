@@ -97,8 +97,27 @@ fn run_git_with_auth(
 
 /// Get latest commit hash where `resources/js` changed
 fn latest_js_commit(project: &Path) -> Result<String, String> {
+    // find current branch name
+    let branch = Command::new("git")
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+        .current_dir(project)
+        .output()
+        .map_err(|e| e.to_string())?;
+    if !branch.status.success() {
+        return Err("Failed to get branch".into());
+    }
+    let branch_name = String::from_utf8_lossy(&branch.stdout).trim().to_string();
+
+    // now check origin/<branch>
     let output = Command::new("git")
-        .args(["log", "-n1", "--pretty=format:%H", "--", "resources/js"])
+        .args([
+            "log",
+            "-n1",
+            "--pretty=format:%H",
+            &format!("origin/{}", branch_name),
+            "--",
+            "resources/js",
+        ])
         .current_dir(project)
         .output()
         .map_err(|e| e.to_string())?;
@@ -109,6 +128,7 @@ fn latest_js_commit(project: &Path) -> Result<String, String> {
 
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
+
 
 /// Main workflow
 pub fn ensure_js_build(project: &Path, parent: &Path) -> Result<(), String> {
