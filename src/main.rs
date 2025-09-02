@@ -193,15 +193,14 @@ fn main() {
     let folder = Path::new("/var/www/dont_delete_sahakari_main");
 
     // Call the lock function
-    let lock = lock_folder(folder);
-    match lock {
+    let file = match lock_folder(folder) {
         Ok(file) => {
-           
+            file
         }
         Err(e) =>{ 
             println!("{}", e);
             exit(1) },
-    }
+    };
 
     let config = Config::load().unwrap_or_else(|_| {
         println!("{}", "No configuration found. Creating default configuration.".yellow());
