@@ -19,6 +19,7 @@ fn run_cmd(dir: &Path, cmd: &str, args: &[&str]) -> Result<(), String> {
     // println!("{}", format!("→ Running `{}`", [cmd, &args.join(" ")].join(" ")).blue());
     let output = Command::new(cmd)
         .args(args)
+        .env("NODE_OPTIONS", "--max-old-space-size=1024")
         .current_dir(dir)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
